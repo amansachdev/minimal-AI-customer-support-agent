@@ -1,0 +1,44 @@
+services:
+  mongo:
+    image: mongo:8
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  server:
+    build:
+      context: ./server
+    restart: unless-stopped
+    environment:
+      MONGODB_URI: mongodb://mongo:27017/support-agent
+      CLIENT_ORIGIN: http://localhost:5173
+      PORT: 3000
+      NODE_ENV: development
+      JWT_SECRET: ${JWT_SECRET:-local-development-only-change-me-32-chars}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1h}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+    ports:
+      - "3000:3000"
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  client:
+    build:
+      context: ./client
+    restart: unless-stopped
+    environment:
+      VITE_API_BASE_URL: http://localhost:3000/api
+    ports:
+      - "5173:5173"
+    depends_on:
+      - server
+
+volumes:
+  mongo_data:
