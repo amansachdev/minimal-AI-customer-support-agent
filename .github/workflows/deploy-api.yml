@@ -63,7 +63,7 @@ jobs:
 
           az extension add --name containerapp --upgrade --yes
           if ! az containerapp env show --name "$AZURE_CONTAINER_ENV" --resource-group "$AZURE_RESOURCE_GROUP" --output none 2>/dev/null; then
-            az containerapp env create --name "$AZURE_CONTAINER_ENV" --resource-group "$AZURE_RESOURCE_GROUP" --location "${{ vars.AZURE_LOCATION || 'eastus' }}" --logs-destination none --output none
+            az containerapp env create --name "$AZURE_CONTAINER_ENV" --resource-group "$AZURE_RESOURCE_GROUP" --location "${{ vars.AZURE_LOCATION || 'eastus' }}" --environment-mode WorkloadProfiles --logs-destination none --output none
           fi
 
           if ! az containerapp show --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" --output none 2>/dev/null; then
