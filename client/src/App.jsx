@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ArrowDown, ArrowLeft, ArrowUp, Bot, Check, ChevronDown, CircleHelp,
+  ArrowLeft, ArrowUp, Check, ChevronDown, CircleHelp,
   Clock3, LogOut, MessageCircle, Plus, ShieldCheck, Sparkles, UserRound,
 } from "lucide-react";
 import api, { getApiError } from "./api.js";
@@ -119,7 +119,9 @@ function App() {
         setConversations(data.conversations);
         const email = (() => {
           try {
-            const payload = JSON.parse(atob(storedToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+            const encoded = storedToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+            const bytes = Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0));
+            const payload = JSON.parse(new TextDecoder().decode(bytes));
             return payload.email;
           } catch { return ""; }
         })();
@@ -145,6 +147,7 @@ function App() {
   }, [messages, sending]);
 
   async function openConversation(id) {
+    if (sending) return;
     setActiveId(id);
     setPageError("");
     setLoadingConversation(true);
@@ -160,6 +163,7 @@ function App() {
   }
 
   function startNewChat() {
+    if (sending) return;
     setActiveId(null);
     setMessages([]);
     setDraft("");
@@ -183,7 +187,7 @@ function App() {
         { role: "user", content, createdAt: new Date().toISOString() },
         data.message,
       ]);
-      await refreshHistory();
+      refreshHistory().catch(() => {});
     } catch (error) {
       setDraft(content);
       setPageError(getApiError(error, "Your message could not be sent. Please try again."));
