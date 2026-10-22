@@ -1,0 +1,80 @@
+name: Deploy API
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "server/**"
+      - ".github/workflows/deploy-api.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      AZURE_CONTAINER_ENV: ${{ vars.AZURE_CONTAINER_ENV }}
+      AZURE_CONTAINER_APP: ${{ vars.AZURE_CONTAINER_APP }}
+      CLIENT_ORIGIN: ${{ vars.CLIENT_ORIGIN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and publish container image
+        id: image
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          image="ghcr.io/$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]'):$GITHUB_SHA"
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker build -t "$image" ./server
+          docker push "$image"
+          echo "value=$image" >> "$GITHUB_OUTPUT"
+      - name: Sign in to Azure with GitHub OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Deploy Container App revision
+        env:
+          IMAGE: ${{ steps.image.outputs.value }}
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          GHCR_PULL_USERNAME: ${{ secrets.GHCR_PULL_USERNAME }}
+          GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$AZURE_RESOURCE_GROUP" && test -n "$AZURE_CONTAINER_ENV" && test -n "$AZURE_CONTAINER_APP"
+          test -n "$CLIENT_ORIGIN" && test -n "$MONGODB_URI" && test -n "$GEMINI_API_KEY" && test -n "$JWT_SECRET"
+          test -n "$GHCR_PULL_USERNAME" && test -n "$GHCR_PULL_TOKEN"
+
+          az extension add --name containerapp --upgrade --yes
+          if ! az containerapp env show --name "$AZURE_CONTAINER_ENV" --resource-group "$AZURE_RESOURCE_GROUP" --output none 2>/dev/null; then
+            az containerapp env create --name "$AZURE_CONTAINER_ENV" --resource-group "$AZURE_RESOURCE_GROUP" --location "${{ vars.AZURE_LOCATION || 'eastus' }}" --logs-destination none --output none
+          fi
+
+          if ! az containerapp show --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" --output none 2>/dev/null; then
+            az containerapp create \
+              --name "$AZURE_CONTAINER_APP" \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --environment "$AZURE_CONTAINER_ENV" \
+              --image "$IMAGE" \
+              --registry-server ghcr.io \
+              --registry-username "$GHCR_PULL_USERNAME" \
+              --registry-password "$GHCR_PULL_TOKEN" \
+              --ingress external --target-port 3000 \
+              --min-replicas 0 --max-replicas 1 --cpu 0.25 --memory 0.5Gi \
+              --secrets "mongodb-uri=$MONGODB_URI" "gemini-api-key=$GEMINI_API_KEY" "jwt-secret=$JWT_SECRET" \
+              --env-vars NODE_ENV=production PORT=3000 TRUST_PROXY=1 CLIENT_ORIGIN="$CLIENT_ORIGIN" GEMINI_MODEL=gemini-2.5-flash JWT_EXPIRES_IN=1h MONGODB_URI=secretref:mongodb-uri GEMINI_API_KEY=secretref:gemini-api-key JWT_SECRET=secretref:jwt-secret \
+              --output none
+          else
+            az containerapp registry set --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" --server ghcr.io --username "$GHCR_PULL_USERNAME" --password "$GHCR_PULL_TOKEN" --output none
+            az containerapp secret set --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" --secrets "mongodb-uri=$MONGODB_URI" "gemini-api-key=$GEMINI_API_KEY" "jwt-secret=$JWT_SECRET" --output none
+            az containerapp update --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" --image "$IMAGE" --set-env-vars NODE_ENV=production PORT=3000 TRUST_PROXY=1 CLIENT_ORIGIN="$CLIENT_ORIGIN" GEMINI_MODEL=gemini-2.5-flash JWT_EXPIRES_IN=1h MONGODB_URI=secretref:mongodb-uri GEMINI_API_KEY=secretref:gemini-api-key JWT_SECRET=secretref:jwt-secret --output none
+          fi
+          echo "API deployed: $(az containerapp show --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" --query properties.configuration.ingress.fqdn --output tsv)"
