@@ -4,6 +4,13 @@ import Conversation from "../models/Conversation.js";
 
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_CONTEXT_MESSAGES = 20;
+const FALLBACK_MODELS = [
+  "gemini-3.8-flash",
+  "gemini-3.5-flash-lite",
+  "gemini-3.5-flash",
+  "gemini-3.1-flash-lite",
+  "gemma-4-26b-a4b-it",
+];
 
 async function generateReply({ apiKey, model, messages }) {
   if (!apiKey) {
@@ -17,40 +24,61 @@ async function generateReply({ apiKey, model, messages }) {
     parts: [{ text: content }],
   }));
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [{ text: "You are a helpful, concise customer support assistant. Be friendly and clear. If you do not know an answer, say so and suggest contacting the support team." }],
+  const configuredModels = String(model || "")
+    .split(",")
+    .map((item) => item.trim().replace(/^models\//, ""))
+    .filter(Boolean);
+  const candidateModels = [...new Set([...configuredModels, ...FALLBACK_MODELS])];
+
+  let lastError = null;
+
+  for (const candidateModel of candidateModels) {
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(candidateModel)}:generateContent`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
+          body: JSON.stringify({
+            systemInstruction: {
+              parts: [{ text: "You are a helpful, concise customer support assistant. Be friendly and clear. If you do not know an answer, say so and suggest contacting the support team." }],
+            },
+            contents,
+            generationConfig: { maxOutputTokens: 700, temperature: 0.6 },
+          }),
+          signal: AbortSignal.timeout(15_000),
         },
-        contents,
-        generationConfig: { maxOutputTokens: 700, temperature: 0.6 },
-      }),
-      signal: AbortSignal.timeout(30_000),
-    },
-  );
+      );
 
-  if (!response.ok) {
-    const errorBody = await response.json().catch(() => ({}));
-    const error = new Error(errorBody?.error?.message || "The AI service could not answer right now.");
-    error.status = response.status === 429 ? 429 : 502;
-    throw error;
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        const error = new Error(errorBody?.error?.message || "The AI service could not answer right now.");
+        error.status = response.status === 429 ? 429 : 502;
+        lastError = error;
+        continue;
+      }
+
+      const data = await response.json();
+      const text = data?.candidates?.[0]?.content?.parts
+        ?.filter((part) => !part.thought)
+        ?.map((part) => part.text || "")
+        .join("")
+        .trim();
+      if (!text) {
+        const error = new Error("The AI service returned an empty response. Please try again.");
+        error.status = 502;
+        lastError = error;
+        continue;
+      }
+      return text;
+    } catch (err) {
+      const error = new Error(err?.message || "The AI service could not answer right now.");
+      error.status = err?.status || 502;
+      lastError = error;
+    }
   }
 
-  const data = await response.json();
-  const text = data?.candidates?.[0]?.content?.parts
-    ?.map((part) => part.text || "")
-    .join("")
-    .trim();
-  if (!text) {
-    const error = new Error("The AI service returned an empty response. Please try again.");
-    error.status = 502;
-    throw error;
-  }
-  return text;
+  throw lastError || new Error("The AI service could not answer right now.");
 }
 
 export default function chatRoutes({ auth, geminiApiKey, geminiModel }) {
