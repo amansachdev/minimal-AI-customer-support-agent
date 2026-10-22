@@ -10,7 +10,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
   id-token: write
 
 jobs:
@@ -26,10 +25,16 @@ jobs:
       - name: Build and publish container image
         id: image
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_PUSH_USERNAME: ${{ secrets.GHCR_PULL_USERNAME }}
+          GHCR_PUSH_TOKEN: ${{ secrets.GHCR_PUSH_TOKEN }}
         run: |
-          image="ghcr.io/$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')-private:$GITHUB_SHA"
-          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          set -euo pipefail
+          if [[ -z "$GHCR_PUSH_USERNAME" || -z "$GHCR_PUSH_TOKEN" ]]; then
+            echo "::error::Set GHCR_PULL_USERNAME and GHCR_PUSH_TOKEN to publish the private image."
+            exit 1
+          fi
+          image="ghcr.io/$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')-api-private:$GITHUB_SHA"
+          echo "$GHCR_PUSH_TOKEN" | docker login ghcr.io -u "$GHCR_PUSH_USERNAME" --password-stdin
           docker build -t "$image" ./server
           docker push "$image"
           echo "value=$image" >> "$GITHUB_OUTPUT"
