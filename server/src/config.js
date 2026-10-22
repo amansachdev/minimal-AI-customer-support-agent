@@ -19,7 +19,7 @@ export function loadConfig() {
     jwtSecret: process.env.JWT_SECRET,
     jwtExpiresIn: process.env.JWT_EXPIRES_IN || "1h",
     geminiApiKey: process.env.GEMINI_API_KEY,
-    geminiModel: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+    geminiModel: (process.env.GEMINI_MODEL || "gemini-3.8-flash").replace(/^models\//, ""),
     clientOrigins: (process.env.CLIENT_ORIGIN || "http://localhost:5173")
       .split(",")
       .map((origin) => origin.trim())

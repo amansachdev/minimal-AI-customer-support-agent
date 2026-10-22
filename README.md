@@ -8,7 +8,7 @@ A small full-stack AI customer support app. Users can create an account, talk to
 - **API:** Node.js 22 + Express 5
 - **Database:** MongoDB (local in Docker Compose, Atlas in production)
 - **Authentication:** bcrypt password hashes + short-lived JWT bearer tokens
-- **AI:** Gemini API (`gemini-2.5-flash` by default)
+- **AI:** Gemini API (`gemini-3.8-flash` by default)
 - **Hosting:** Azure Static Web Apps Free plan + Azure Container Apps consumption
 
 ## Run locally with Docker Compose
@@ -77,7 +77,7 @@ See [`.env.example`](.env.example), [`server/.env.example`](server/.env.example)
 | `JWT_SECRET` | API | Long random signing key (required in production) |
 | `JWT_EXPIRES_IN` | API | Token lifetime; defaults to `1h` |
 | `GEMINI_API_KEY` | API | Gemini Developer API key |
-| `GEMINI_MODEL` | API | Model name; defaults to `gemini-2.5-flash` |
+| `GEMINI_MODEL` | API | Model name; defaults to `gemini-3.8-flash` |
 | `CLIENT_ORIGIN` | API | Comma-separated allowed browser origins |
 | `TRUST_PROXY` | API | Set to `1` when behind Azure ingress |
 | `VITE_API_BASE_URL` | Frontend build | API origin plus `/api` |
