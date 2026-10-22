@@ -51,7 +51,10 @@ jobs:
           set -euo pipefail
           test -n "$AZURE_RESOURCE_GROUP" && test -n "$AZURE_CONTAINER_ENV" && test -n "$AZURE_CONTAINER_APP"
           test -n "$CLIENT_ORIGIN" && test -n "$MONGODB_URI" && test -n "$GEMINI_API_KEY" && test -n "$JWT_SECRET"
-          test -n "$GHCR_PULL_USERNAME" && test -n "$GHCR_PULL_TOKEN"
+          if [[ -z "$GHCR_PULL_USERNAME" || -z "$GHCR_PULL_TOKEN" ]]; then
+            echo "::error::Set GHCR_PULL_USERNAME and GHCR_PULL_TOKEN repository secrets so Azure can pull the private image."
+            exit 1
+          fi
 
           az extension add --name containerapp --upgrade --yes
           if ! az containerapp env show --name "$AZURE_CONTAINER_ENV" --resource-group "$AZURE_RESOURCE_GROUP" --output none 2>/dev/null; then
