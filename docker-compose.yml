@@ -14,15 +14,14 @@ services:
     build:
       context: ./server
     restart: unless-stopped
+    env_file:
+      - path: ./server/.env
+        required: false
     environment:
       MONGODB_URI: mongodb://mongo:27017/support-agent
       CLIENT_ORIGIN: http://localhost:5173
       PORT: 3000
       NODE_ENV: development
-      JWT_SECRET: ${JWT_SECRET:-local-development-only-change-me-32-chars}
-      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1h}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
     ports:
       - "3000:3000"
     depends_on:

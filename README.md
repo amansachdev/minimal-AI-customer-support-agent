@@ -13,13 +13,13 @@ A small full-stack AI customer support app. Users can create an account, talk to
 
 ## Run locally with Docker Compose
 
-1. Install Docker Desktop and make a local environment file:
+1. Install Docker Desktop and make the API environment file:
 
    ```sh
-   cp .env.example .env
+   cp server/.env.example server/.env
    ```
 
-2. Add your Gemini API key to `.env` as `GEMINI_API_KEY`. Chat requests need this key; signup and login can run without it.
+2. Add your Gemini API key to `server/.env` as `GEMINI_API_KEY`. Chat requests need this key; signup and login can run without it. Compose reads this file automatically when it exists.
 
 3. Start the app:
 
