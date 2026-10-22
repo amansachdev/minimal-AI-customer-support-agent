@@ -8,6 +8,7 @@ client/dist/
 !**/.env.example
 server/.env
 client/.env
+*-credentials.env
 .DS_Store
 npm-debug.log*
 coverage/
