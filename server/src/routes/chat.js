@@ -5,8 +5,8 @@ import Conversation from "../models/Conversation.js";
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_CONTEXT_MESSAGES = 20;
 const FALLBACK_MODELS = [
-  "gemini-3.8-flash",
   "gemini-3.5-flash-lite",
+  "gemini-3.8-flash",
   "gemini-3.5-flash",
   "gemini-3.1-flash-lite",
   "gemma-4-26b-a4b-it",
